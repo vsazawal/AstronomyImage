@@ -15,24 +15,20 @@ import java.text.SimpleDateFormat;
 public class ImageOfTheDay {
 
     private String description;
-    private String URL;
+    private Bitmap bitmap;
 
 
-    public ImageOfTheDay(String desc, String link) {
+    public ImageOfTheDay(String desc, Bitmap bmp) {
         description = desc;
-        URL = link;
+        bitmap = bmp;
     }
 
     public String getDescription() {
         return description;
     }
 
-
     public Bitmap getImage() {
-
-        //todo here
-        return null;
-
+        return bitmap;
     }
 
 }
