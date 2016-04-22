@@ -1,11 +1,15 @@
 package edu.umd.cs.astronomyimage;
 
 
+import android.Manifest;
 import android.content.Context;
-import android.content.ContextWrapper;
+
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.os.AsyncTask;
+import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.util.Log;
@@ -24,7 +28,9 @@ import org.apache.commons.lang3.StringEscapeUtils;
 
 public class MainActivity extends AppCompatActivity {
 
-    private String NASA_IMAGE = "nasaimage.jpg";
+    private static final String NASA_IMAGE = "nasaimage.jpg";
+    private static final int COMPRESSION_FACTOR = 2; //should be power of two
+    private static final int SAVE_IMAGE_PR_CODE = 1;
     private TextView mTextView;
     private ImageView mImageView;
     private ImageOfTheDay mImage;
@@ -35,8 +41,8 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        ContextWrapper cs = new ContextWrapper(getApplicationContext());
-        File path = cs.getFilesDir();
+
+        File path = getApplicationContext().getFilesDir();
         try {
             mDirectory = path.getCanonicalPath();
             Log.d("oncreate", mDirectory);
@@ -48,11 +54,33 @@ public class MainActivity extends AppCompatActivity {
         mImage = null;
         mTextView = (TextView) findViewById(R.id.astronomy_text);
         mImageView = (ImageView) findViewById(R.id.astronomy_image);
-        new RSSItemReadTask().execute("http://www.nasa.gov/rss/dyn/lg_image_of_the_day.rss");
 
+        if (checkPermission()) {
+            new RSSItemReadTask().execute("http://www.nasa.gov/rss/dyn/lg_image_of_the_day.rss");
+        }
 
     }
 
+    private boolean checkPermission() {
+        if ((ContextCompat.checkSelfPermission(this, Manifest.permission.WRITE_EXTERNAL_STORAGE))
+                != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, SAVE_IMAGE_PR_CODE);
+                return false;
+        }
+        return true;
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grant_results) {
+        switch (requestCode) {
+            case SAVE_IMAGE_PR_CODE:
+                if (grant_results[0] == PackageManager.PERMISSION_GRANTED) {
+                    new RSSItemReadTask().execute("http://www.nasa.gov/rss/dyn/lg_image_of_the_day.rss");
+                }
+                return;
+
+        }
+    }
 
     public class RSSItemReadTask extends AsyncTask<String, Void, ImageOfTheDay> {
 
@@ -126,8 +154,7 @@ public class MainActivity extends AppCompatActivity {
                 URL real_url = new URL(url);
                 HttpURLConnection connection = (HttpURLConnection) real_url.openConnection();
                 InputStream in = connection.getInputStream();
-                ByteArrayOutputStream out = new ByteArrayOutputStream();
-//                FileOutputStream out = openFileOutput(NASA_IMAGE, Context.MODE_PRIVATE);
+                FileOutputStream out = openFileOutput(NASA_IMAGE, Context.MODE_PRIVATE);
                 byte[] buffer = new byte[1024];
                 int bytesRead = in.read(buffer);
                 while (bytesRead != -1) {
@@ -137,8 +164,7 @@ public class MainActivity extends AppCompatActivity {
 
                 in.close();
                 out.close();
-                bmp.compress(Bitmap.CompressFormat.JPEG, 100, out);
-                bmp = BitmapFactory.decodeFile(mDirectory + "/" + NASA_IMAGE);
+                bmp = decodeAndCompressFile(mDirectory + "/" + NASA_IMAGE);
             }
             catch (Exception e) {
                 throw new RuntimeException(e);
@@ -149,6 +175,14 @@ public class MainActivity extends AppCompatActivity {
         protected void onPostExecute(ImageOfTheDay img) {
             mImageView.setImageBitmap(img.getImage());
             mTextView.setText(img.getDescription());
+
+        }
+
+        protected Bitmap decodeAndCompressFile(String full_filename) {
+            final BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = COMPRESSION_FACTOR;
+            return BitmapFactory.decodeFile(full_filename, options);
+
 
         }
     }
